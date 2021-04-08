@@ -1,4 +1,0 @@
-library(readr)
-data2013 = read.csv("foranalysis2013.csv")
-data2013 = data2013[, - c(8, 9, 10)]
-data2013 = unique(data2013)
