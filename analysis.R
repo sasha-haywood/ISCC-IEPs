@@ -4,15 +4,9 @@ library(Hmisc)
 library(dplyr)
 library(lme4)
 library(scales)
-data = read.csv("allData.csv", na.strings=c("","NA"))
+data = read.csv("allData.csv", na.strings=c("","NA", "-", "-1"))
 data = data[,c(2:11, 14, 16:18, 20, 24:26)]
 # only keep variables we are interested in
-
-data[data$Teacher_Gender == "-",3] = NA 
-# change Teacher_Gender = "-" to NA
-
-data[data$SOCIO_ECON_STATUS_CODE == "-1",10] = NA
-# change SOCIO_ECON_STATUS_CODE = "-1" to NA
     
 data$SCHOOL_YEAR_ID = as.factor(data$SCHOOL_YEAR_ID)
 data$PRIMARY_EXCEPTION = as.factor(data$PRIMARY_EXCEPTION)
@@ -50,29 +44,8 @@ rcorr(as.matrix(test), type = "pearson")
 unique_student = data[,c(2, 7:18)] %>%
   unique()
 
-m1 = glmer(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
-           ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
-           GRADE_CODE_SE + PRIMARY_EXCEPTION + GRAD_RATE + PercentFreeReduced +
-           TOTAL_ENROLLMENT + expend_per_student + (1|SCHOOL_YEAR_ID), 
-           data = na.omit(unique_student), family = binomial,
-           control=glmerControl(optimizer="bobyqa"))
-# control suggested at https://stats.idre.ucla.edu/r/dae/mixed-effects-logistic-regression/
-# Supposed to make to more efficent but I can't get this to run either way.
-# Just gets hung up. But I am using R on IU AnyWare.
 
-summary(m1)
-# Initially, it looks like SOCIO_ECON_STATUS_CODE, Student_Gender, and GRAD_RATE 
-# are insignificant
-
-step(m1)
-# AIC improved when we remove GRAD_RATE but not the others
-
-m2 = glm(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
-            ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
-            GRADE_CODE_SE + PRIMARY_EXCEPTION + PercentFreeReduced +
-            TOTAL_ENROLLMENT + expend_per_student, data = na.omit(unique_student), 
-          family = "binomial")
-summary(m2)
+####### Visualizations
 
 prop.table(table(unique_student[,c(2, 9)]), 1)
 
@@ -145,4 +118,103 @@ ggplot(unique_student, aes(y=expend_per_student, x=PLACEMENT_TYPE)) +
   ggtitle("Inclusion By Corporation Per-Student Expenditure") +
   scale_x_discrete("Inclusion Level", labels = c("High", "Low")) +
   scale_y_continuous("Per-Student Expenditure",label = dollar)
+
+elmGrades = c("PK", "KG", "01", "02", "03", "04", "05")
+
+elementary = data %>%
+  filter(GRADE_CODE_SE %in% elmGrades)
+# older students will be linked to more teachers
+
+test = unique(elementary[c("STUDENT_ALTERNATE_ID", "SCHOOL_YEAR_ID")])
+# these students are, on average, linked to about 1.5 teachers per year
+
+ggplot(elementary, aes(x=Teacher_Gender, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  ggtitle("Inclusion Rate by Teacher Gender") +
+  scale_x_discrete("Teacher Gender") + 
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+
+ggplot(elementary, aes(x=Teacher_Ethnicity, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  ggtitle("Inclusion Rate by Teacher Ethnicity") +
+  scale_x_discrete("Teacher Ethnicity") + 
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+
+principalOnly = data %>%
+  filter(!is.na(Principal_Gender))
+principalOnly = principalOnly[,c(2, 5, 6, 11, 14)]
+principalOnly = unique(principalOnly)
+# one row for each student/year
+
+ggplot(principalOnly, aes(x=Principal_Gender, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  ggtitle("Inclusion Rate by Principal Gender") +
+  scale_x_discrete("Principal Gender") + 
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+
+ggplot(principalOnly, aes(x=Principal_Ethnicity, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  ggtitle("Inclusion Rate by Principal Ethnicity") +
+  scale_x_discrete("Principal Ethnicity") + 
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+
+
+########## Let's Make a Model
+
+m1 = glmer(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
+             ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
+             GRADE_CODE_SE + PRIMARY_EXCEPTION + GRAD_RATE + PercentFreeReduced +
+             TOTAL_ENROLLMENT + expend_per_student + (1|SCHOOL_YEAR_ID), 
+           data = na.omit(unique_student), family = binomial,
+           control=glmerControl(optimizer="bobyqa"))
+# control suggested at https://stats.idre.ucla.edu/r/dae/mixed-effects-logistic-regression/
+# Supposed to make to more efficent but I can't get this to run either way.
+# Just gets hung up. But I am using R on IU AnyWare.
+
+m1 = glm(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
+             ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
+             GRADE_CODE_SE + PRIMARY_EXCEPTION + GRAD_RATE + PercentFreeReduced +
+             TOTAL_ENROLLMENT + expend_per_student, 
+           data = na.omit(unique_student), family = "binomial")
+
+summary(m1)
+# Initially, it looks like SOCIO_ECON_STATUS_CODE, Student_Gender, and GRAD_RATE 
+# are insignificant
+
+step(m1)
+# AIC improved when we remove GRAD_RATE but not the others
+
+m2 = glm(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
+           ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
+           GRADE_CODE_SE + PRIMARY_EXCEPTION + PercentFreeReduced +
+           TOTAL_ENROLLMENT + expend_per_student, data = na.omit(unique_student), 
+         family = "binomial")
+summary(m2)
+
+
+
+########## A model for the principal demographics
+
+p1 = glmer(PLACEMENT_TYPE ~ Principal_Gender + Principal_Ethnicity + 
+             (1|SCHOOL_YEAR_ID), data = principalOnly, family = binomial)
+p2 = glmer(PLACEMENT_TYPE ~ Principal_Ethnicity + 
+             (1|SCHOOL_YEAR_ID), data = principalOnly, family = binomial)
+anova(p1, p2) 
+# no signficant difference.  Can drop principal gender.
 
