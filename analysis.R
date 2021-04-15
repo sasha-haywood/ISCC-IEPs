@@ -21,6 +21,8 @@ levels(data$PLACEMENT_TYPE) = c("1","0")
 data$GRADE_CODE_SE = relevel(data$GRADE_CODE_SE, "KG")
 data$GRADE_CODE_SE = relevel(data$GRADE_CODE_SE, "PK")
 # put grades in order
+data$SOCIO_ECON_STATUS_CODE = relevel(data$SOCIO_ECON_STATUS_CODE, "Reduced")
+data$SOCIO_ECON_STATUS_CODE = relevel(data$SOCIO_ECON_STATUS_CODE, "Full")
 
 data = droplevels(data)
 # remove factor levels that are blank
@@ -41,13 +43,20 @@ test = na.omit(test)
 rcorr(as.matrix(test), type = "pearson")
 # Beware: correlations between Grad_rate, PercentFreeReduced, expend_per_student
 
-unique_student = data[,c(2, 7:18)] %>%
+unique_student = data[,c(2, 5:18)] %>%
   unique()
-
+# mostly unique.  7% are duplicates
 
 ####### Visualizations
 
 prop.table(table(unique_student[,c(2, 9)]), 1)
+prop.table(table(unique_student[,c(3, 9)]), 1)
+prop.table(table(unique_student[,c(4, 9)]), 1)
+prop.table(table(unique_student[,c(5, 9)]), 1)
+prop.table(table(unique_student[,c(6, 9)]), 1)
+prop.table(table(unique_student[,c(7, 9)]), 1)
+prop.table(table(unique_student[,c(8, 9)]), 1)
+
 
 ggplot(unique_student, aes(x=Student_Gender, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
   geom_bar(position = "fill") +
@@ -75,6 +84,16 @@ ggplot(unique_student, aes(x=ENGLISH_LEARNER_STATUS_CODE, fill = forcats::fct_re
   ylab("Percent Inclusion") +
   xlab("ESL status") +
   ggtitle("Inclusion Rate by ESL status") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+
+ggplot(unique_student, aes(x=SOCIO_ECON_STATUS_CODE, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("Free/Reduced Lunch status") +
+  ggtitle("Inclusion Rate by Free/Reduced Lunch status") +
   theme(legend.position = "none") +
   scale_fill_grey(start = 1, end = 0) +
   coord_flip()
@@ -127,8 +146,12 @@ elementary = data %>%
 
 test = unique(elementary[c("STUDENT_ALTERNATE_ID", "SCHOOL_YEAR_ID")])
 # these students are, on average, linked to about 1.5 teachers per year
+# But 40% have no teacher
 
-ggplot(elementary, aes(x=Teacher_Gender, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+prop.table(table(elementary[,c(3, 14)]), 1)
+prop.table(table(elementary[,c(4, 14)]), 1)
+
+ggplot(data, aes(x=Teacher_Gender, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
   geom_bar(position = "fill") +
   scale_y_continuous(labels = scales::percent) +
   ylab("Percent Inclusion") +
@@ -138,7 +161,7 @@ ggplot(elementary, aes(x=Teacher_Gender, fill = forcats::fct_rev(PLACEMENT_TYPE)
   scale_fill_grey(start = 1, end = 0) +
   coord_flip()
 
-ggplot(elementary, aes(x=Teacher_Ethnicity, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+ggplot(data, aes(x=Teacher_Ethnicity, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
   geom_bar(position = "fill") +
   scale_y_continuous(labels = scales::percent) +
   ylab("Percent Inclusion") +
@@ -153,6 +176,9 @@ principalOnly = data %>%
 principalOnly = principalOnly[,c(2, 5, 6, 11, 14)]
 principalOnly = unique(principalOnly)
 # one row for each student/year
+
+prop.table(table(principalOnly[,c(2, 5)]), 1)
+prop.table(table(principalOnly[,c(3, 5)]), 1)
 
 ggplot(principalOnly, aes(x=Principal_Gender, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
   geom_bar(position = "fill") +
@@ -180,7 +206,8 @@ ggplot(principalOnly, aes(x=Principal_Ethnicity, fill = forcats::fct_rev(PLACEME
 m1 = glmer(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
              ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
              GRADE_CODE_SE + PRIMARY_EXCEPTION + GRAD_RATE + PercentFreeReduced +
-             TOTAL_ENROLLMENT + expend_per_student + (1|SCHOOL_YEAR_ID), 
+             TOTAL_ENROLLMENT + expend_per_student + Principal_Gender + Principal_Ethnicity + 
+             (1|SCHOOL_YEAR_ID), 
            data = na.omit(unique_student), family = binomial,
            control=glmerControl(optimizer="bobyqa"))
 # control suggested at https://stats.idre.ucla.edu/r/dae/mixed-effects-logistic-regression/
@@ -190,31 +217,20 @@ m1 = glmer(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity +
 m1 = glm(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
              ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
              GRADE_CODE_SE + PRIMARY_EXCEPTION + GRAD_RATE + PercentFreeReduced +
-             TOTAL_ENROLLMENT + expend_per_student, 
+             TOTAL_ENROLLMENT + expend_per_student + Principal_Gender + Principal_Ethnicity,
            data = na.omit(unique_student), family = "binomial")
 
-summary(m1)
-# Initially, it looks like SOCIO_ECON_STATUS_CODE, Student_Gender, and GRAD_RATE 
-# are insignificant
+min = glm(PLACEMENT_TYPE ~ 1, data = na.omit(unique_student), 
+          family = "binomial")
+best = step(min, scope = formula(m1), direction = "forward")
 
-step(m1)
-# AIC improved when we remove GRAD_RATE but not the others
+summary(best)
 
-m2 = glm(PLACEMENT_TYPE ~ Student_Gender + Student_Ethnicity + 
-           ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE +
-           GRADE_CODE_SE + PRIMARY_EXCEPTION + PercentFreeReduced +
-           TOTAL_ENROLLMENT + expend_per_student, data = na.omit(unique_student), 
-         family = "binomial")
-summary(m2)
+########## A model for the teacher demographics
 
-
-
-########## A model for the principal demographics
-
-p1 = glmer(PLACEMENT_TYPE ~ Principal_Gender + Principal_Ethnicity + 
-             (1|SCHOOL_YEAR_ID), data = principalOnly, family = binomial)
-p2 = glmer(PLACEMENT_TYPE ~ Principal_Ethnicity + 
-             (1|SCHOOL_YEAR_ID), data = principalOnly, family = binomial)
-anova(p1, p2) 
-# no signficant difference.  Can drop principal gender.
-
+t1 = glmer(PLACEMENT_TYPE ~ Teacher_Gender + Teacher_Ethnicity + 
+             (1|SCHOOL_YEAR_ID), data = data, family = binomial)
+t2 = glmer(PLACEMENT_TYPE ~ Teacher_Ethnicity + 
+             (1|SCHOOL_YEAR_ID), data = data, family = binomial)
+anova(t1, t2) 
+# no signficant difference.  Can drop teacher gender.
