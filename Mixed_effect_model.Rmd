@@ -1,0 +1,293 @@
+---
+title: "R_model"
+author: "Ben"
+date: "4/20/2021"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r echo = TRUE}
+library(readr)
+library(ggplot2)
+library(Hmisc)
+library(dplyr)
+library(lme4)
+library(scales)
+#library(RCurl)
+library(effects)
+```
+
+```{r echo = TRUE}
+data = read.csv("C:/Users/Elvinyuan/Desktop/statistics_intern/Hardy/data.csv", na.strings=c("","NA", "-", "-1"))
+```
+change variables to factors
+```{r echo = TRUE}
+data$PLACEMENT_TYPE <- factor(data$PLACEMENT_TYPE)
+```
+
+Visualizations
+visualize the explanatory variables which our client feels interested in on the effect of our response variable. 
+```{r echo = TRUE}
+ggplot(data=data, aes(y=percentFRL, x=PLACEMENT_TYPE)) +
+  geom_boxplot() +
+  ylab("Proportion of Corp. Receiving Free/Reduced Lunch") +
+  ggtitle("Inclusion By Free/Reduced Rate of Corporation") +
+  scale_x_discrete("Inclusion Level", labels = c("1"="High","0"= "Low"))
+```
+
+```{r echo = TRUE}
+ggplot(data=data, aes(y=schoolSize, x=PLACEMENT_TYPE))+geom_boxplot() +ylab("School Size") +
+  ggtitle("Inclusion By School Size") +
+  scale_x_discrete("Inclusion Level", labels = c("1"="High","0"= "Low"))
+```
+
+```{r echo = TRUE}
+ggplot(data=data, aes(x=Ethnicity, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("Ethnicity") +
+  ggtitle("Inclusion Rate by Ethnicity") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+```
+
+```{r echo = TRUE}
+ggplot(data = data, aes(x=GENDER_CODE, fill = forcats::fct_rev(PLACEMENT_TYPE))) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("Gender") +
+  ggtitle("Inclusion Rate by Gender") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+```
+
+```{r echo = TRUE}
+ggplot(data=data, aes(y=percentWhite, x=PLACEMENT_TYPE)) +
+  geom_boxplot() +
+  ylab("Proportion of White") +
+  ggtitle("Inclusion By Proportion of White") +
+  scale_x_discrete("Inclusion Level", labels = c("1"="High","0"= "Low"))
+```
+
+```{r echo = TRUE}
+ggplot(data=data, aes(y=discLength, x=PLACEMENT_TYPE))+geom_boxplot() +ylab("Behavior") +
+  ggtitle("Inclusion By Behavior") +
+  scale_x_discrete("Inclusion Level", labels = c("1"="High","0"= "Low"))
+```
+
+```{r echo = TRUE}
+ggplot(data=data, aes(y=discCount, x=PLACEMENT_TYPE))+geom_boxplot() +ylab("Behavior") +
+  ggtitle("Inclusion By Behavior") +
+  scale_x_discrete("Inclusion Level", labels = c("1"="High","0"= "Low"))
+```
+
+Make our first round of models
+
+```{r echo = TRUE}
+model1 <- glmer(PLACEMENT_TYPE ~  percentFRL + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+
+```{r echo = TRUE}
+print(model1, corr = FALSE)
+```
+
+```{r echo = TRUE}
+se1 <- sqrt(diag(vcov(model1)))
+# table of estimates with 95% CI
+(tab1 <- cbind(Est = fixef(model1), LL = fixef(model1) - 1.96 * se1, UL = fixef(model1) + 1.96 *se1))
+exp(tab1)
+```
+So the fixed effect is significant.
+
+```{r echo = TRUE}
+#model2 <- glmer(PLACEMENT_TYPE ~  schoolSize + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+Model failed to converge becasue schoolsize and Placement_type are in the different magnitude. If we insist to do the model, we have to rescale variables, but it might change the meaning of schoolsize.
+
+```{r echo = TRUE}
+model3 <- glmer(PLACEMENT_TYPE ~   Ethnicity + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+
+```{r echo = TRUE}
+print(model3, corr = FALSE)
+```
+
+```{r echo = TRUE}
+se3 <- sqrt(diag(vcov(model3)))
+# table of estimates with 95% CI
+(tab3 <- cbind(Est = fixef(model3), LL = fixef(model3) - 1.96 * se3, UL = fixef(model3) + 1.96 *se3))
+exp(tab3)
+```
+
+```{r echo = TRUE}
+model4 <- glmer(PLACEMENT_TYPE ~   GENDER_CODE*Ethnicity + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+
+```{r echo = TRUE}
+print(model4, corr = FALSE)
+```
+
+```{r echo = TRUE}
+se4 <- sqrt(diag(vcov(model4)))
+# table of estimates with 95% CI
+(tab4 <- cbind(Est = fixef(model4), LL = fixef(model4) - 1.96 * se4, UL = fixef(model4) + 1.96 *se4))
+exp(tab4)
+```
+
+```{r echo = TRUE}
+plot(Effect(c("GENDER_CODE"，"Ethnicity"), model4), lines=list(multiline=TRUE),
+confint=list(style="bars"))
+```
+
+
+```{r echo = TRUE}
+model5 <- glmer(PLACEMENT_TYPE ~   percentWhite*Ethnicity + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+
+
+```{r echo = TRUE}
+plot(Effect(c("percentWhite"，"Ethnicity"), model5), lines=list(multiline=TRUE),
+confint=list(style="bars"))
+```
+
+
+
+```{r echo = TRUE}
+print(model5, corr = FALSE)
+```
+
+
+```{r echo = TRUE}
+se5 <- sqrt(diag(vcov(model5)))
+# table of estimates with 95% CI
+(tab5 <- cbind(Est = fixef(model5), LL = fixef(model5) - 1.96 * se5, UL = fixef(model5) + 1.96 *se5))
+exp(tab5)
+```
+
+```{r echo = TRUE}
+model6 <- glmer(PLACEMENT_TYPE ~   discLength*GENDER_CODE + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+
+```{r echo = TRUE}
+plot(Effect(c("discLength"，"GENDER_CODE"), model6), lines=list(multiline=TRUE),
+confint=list(style="bars"))
+```
+
+```{r echo = TRUE}
+print(model6, corr = FALSE)
+```
+
+```{r echo = TRUE}
+se6 <- sqrt(diag(vcov(model6)))
+# table of estimates with 95% CI
+(tab6 <- cbind(Est = fixef(model6), LL = fixef(model6) - 1.96 * se6, UL = fixef(model6) + 1.96 *se6))
+exp(tab6)
+```
+
+```{r echo = TRUE}
+model6.2 <- glmer(PLACEMENT_TYPE ~   discCount*GENDER_CODE + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+
+```{r echo = TRUE}
+plot(Effect(c("discCount"，"GENDER_CODE"), model6.2), lines=list(multiline=TRUE),
+confint=list(style="bars"))
+```
+
+```{r echo = TRUE}
+print(model6.2, corr = FALSE)
+```
+
+```{r echo = TRUE}
+se6.2 <- sqrt(diag(vcov(model6.2)))
+# table of estimates with 95% CI
+(tab6.2 <- cbind(Est = fixef(model6.2), LL = fixef(model6.2) - 1.96 * se6.2, UL = fixef(model6.2) + 1.96 *se6.2))
+exp(tab6.2)
+```
+
+```{r echo = TRUE}
+model7 <- glmer(PLACEMENT_TYPE ~   GRADE_CODE + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+print(model7, corr = FALSE)
+se7 <- sqrt(diag(vcov(model7)))
+# table of estimates with 95% CI
+(tab7 <- cbind(Est = fixef(model7), LL = fixef(model7) - 1.96 * se7, UL = fixef(model7) + 1.96 *se7))
+exp(tab7)
+```
+Our model did fit, but it generated that warning because our random effects are very small.
+
+```{r echo = TRUE}
+model8 <- glmer(PLACEMENT_TYPE ~   ENGLISH_LEARNER_STATUS_CODE + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+print(model8, corr = FALSE)
+se8 <- sqrt(diag(vcov(model8)))
+# table of estimates with 95% CI
+(tab8 <- cbind(Est = fixef(model8), LL = fixef(model8) - 1.96 * se8, UL = fixef(model8) + 1.96 *se8))
+exp(tab8)
+```
+
+```{r echo = TRUE}
+model9 <- glmer(PLACEMENT_TYPE ~   SOCIO_ECON_STATUS_CODE + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+print(model9, corr = FALSE)
+se9 <- sqrt(diag(vcov(model9)))
+# table of estimates with 95% CI
+(tab9 <- cbind(Est = fixef(model9), LL = fixef(model9) - 1.96 * se9, UL = fixef(model9) + 1.96 *se9))
+exp(tab9)
+```
+
+```{r echo = TRUE}
+model10 <- glmer(PLACEMENT_TYPE ~   percentSPED + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+print(model10, corr = FALSE)
+se10 <- sqrt(diag(vcov(model10)))
+# table of estimates with 95% CI
+(tab10 <- cbind(Est = fixef(model10), LL = fixef(model10) - 1.96 * se10, UL = fixef(model10) + 1.96 *se10))
+exp(tab10)
+```
+
+```{r echo = TRUE}
+model11 <- glmer(PLACEMENT_TYPE ~   absent + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+print(model11, corr = FALSE)
+se11 <- sqrt(diag(vcov(model11)))
+# table of estimates with 95% CI
+(tab11 <- cbind(Est = fixef(model11), LL = fixef(model11) - 1.96 * se11, UL = fixef(model11) + 1.96 *se11))
+exp(tab11)
+```
+
+The model that we think our client will feel interested 
+```{r echo = TRUE}
+model2_1 <- glmer(PLACEMENT_TYPE ~ GENDER_CODE + ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE + Ethnicity  + percentWhite + percentSPED + percentFRL + discCount + absent + GENDER_CODE:Ethnicity + Ethnicity:percentWhite + discCount:GENDER_CODE + (1|SCHOOL_YEAR_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+```
+
+```{r echo = TRUE}
+print(model2_1, corr = FALSE)
+se2_1 <- sqrt(diag(vcov(model2_1)))
+# table of estimates with 95% CI
+(tab2_1 <- cbind(Est = fixef(model2_1), LL = fixef(model2_1) - 1.96 * se2_1, UL = fixef(model2_1) + 1.96 *se2_1))
+exp(tab2_1)
+```
+
+```{r echo = TRUE}
+plot(Effect(c("discCount"，"GENDER_CODE"), model2_1), lines=list(multiline=TRUE),
+confint=list(style="bars"))
+```
+
+```{r echo = TRUE}
+plot(Effect(c("Ethnicity","percentWhite"), model2_1), lines=list(multiline=TRUE),
+confint=list(style="bars"))
+```
+
+```{r echo = TRUE}
+plot(Effect(c("GENDER_CODE","Ethnicity"), model2_1), lines=list(multiline=TRUE),
+confint=list(style="bars"))
+```
+
+model checking
+```{r echo = TRUE}
+qqnorm(residuals(model2_1))
+```
+It is OK
+
+
