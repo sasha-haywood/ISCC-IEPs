@@ -1,0 +1,231 @@
+---
+title: "R_model"
+author: "Ben"
+date: "4/20/2021"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r echo = TRUE}
+library(readr)
+library(ggplot2)
+library(Hmisc)
+library(dplyr)
+library(lme4)
+library(scales)
+#library(RCurl)
+library(effects)
+library(MASS)
+library(sjPlot)
+library(car)
+library(GGally)
+```
+
+```{r echo = TRUE}
+data = read.csv("ad.data.csv", na.strings=c("","NA", "-", "-1"))
+data$PLACEMENT_TYPE <- factor(data$PLACEMENT_TYPE)
+data$ENGLISH_LEARNER_STATUS_CODE = factor(data$ENGLISH_LEARNER_STATUS_CODE)
+data$SOCIO_ECON_STATUS_CODE = factor(data$SOCIO_ECON_STATUS_CODE)
+data$GRADE_CODE = factor(data$GRADE_CODE)
+data$schoolSize = data$schoolSize / 1000
+
+# rescale to make closer
+data[is.na(data$absent), 19] = 0
+data$absent = data$absent/180
+```
+
+
+```{r}
+model = glmer(PLACEMENT_TYPE ~ GRADE_CODE + GENDER_CODE + ENGLISH_LEARNER_STATUS_CODE + SOCIO_ECON_STATUS_CODE + Ethnicity  + percentWhite + percentSPED + percentFRL + corpWhite + corpSPED + corpFRL + absent + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial, control=glmerControl(optimizer="bobyqa"))
+
+plot_model(m1, show.values = T)
+
+```
+
+If we put all the variables into one model (except spending per student, school size, and discipline) we can see the significance of each variable.  
+
+```{r}
+ggpairs(data[, c(8, 10:16)])
+```
+
+Looking at variables separately:
+
+```{r echo = TRUE}
+ggplot(data = data, aes(x=GRADE_CODE, fill = PLACEMENT_TYPE)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("Grade") +
+  ggtitle("Inclusion Rate by Grade") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+```
+
+```{r echo = TRUE}
+ggplot(data = data, aes(x=GENDER_CODE, fill = PLACEMENT_TYPE)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("Gender") +
+  ggtitle("Inclusion Rate by Gender") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+```
+
+```{r echo = TRUE}
+ggplot(data = data, aes(x=ENGLISH_LEARNER_STATUS_CODE, fill = PLACEMENT_TYPE)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("ELL Status") +
+  ggtitle("Inclusion Rate by English Learner Status") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+```
+
+```{r echo = TRUE}
+ggplot(data = data, aes(x=SOCIO_ECON_STATUS_CODE, fill = PLACEMENT_TYPE)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("FRL status") +
+  ggtitle("Inclusion Rate by Free/Reduced Lunch Status") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+```
+
+```{r echo = TRUE}
+ggplot(data=data, aes(x=Ethnicity, fill = PLACEMENT_TYPE)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percent Inclusion") +
+  xlab("Ethnicity") +
+  ggtitle("Inclusion Rate by Ethnicity") +
+  theme(legend.position = "none") +
+  scale_fill_grey(start = 1, end = 0) +
+  coord_flip()
+```
+
+```{r include = F}
+model10 <- glmer(PLACEMENT_TYPE ~  absent + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model10, show.values = T)
+summary(model10)
+exp(-5.43/180)
+```
+Each day of absence correlates with a 3% drop in odds of inclusion
+
+```{r include = F}
+model11 <- glmer(PLACEMENT_TYPE ~  discipline + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model11, show.values = T)
+```
+Discipline has no significant effect
+
+```{r include = F}
+model1 <- glmer(PLACEMENT_TYPE ~  percentFRL + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model1, show.values = T)
+summary(model1)
+1-exp(-.177)
+```
+A 10% increase in percent of the school on Free and Reduced Lunches correlates with a 16% drop in the odds of being included.
+
+```{r include = F}
+model2 <- glmer(PLACEMENT_TYPE ~  percentWhite + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model2, show.values = T)
+summary(model2)
+exp(.8468)
+```
+
+A 10% increase in the percent of student body which is white correlates with an 9% increase in odds of inclusion.
+
+```{r include = F}
+model3 <- glmer(PLACEMENT_TYPE ~  percentSPED + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model3, show.values = T)
+summary(model3)
+exp(-1.51)
+```
+A 10% increase in the percent of student body which is in special education correlates with a 87% drop in odds of inclusion.
+
+```{r include = F}
+model4 <- glmer(PLACEMENT_TYPE ~  schoolSize + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model4, show.values = T)
+```
+
+School size is not significant.
+
+```{r include = F}
+model5 <- glmer(PLACEMENT_TYPE ~  corpWhite + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model5, show.values = T)
+summary(model5)
+exp(.178)
+```
+Each 10% increase in percent of the corporation that is white correlates with a 19% increase in odds of incusion.
+
+```{r include = F}
+model6 <- glmer(PLACEMENT_TYPE ~  corpFRL + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model6, show.values = T)
+summary(model6)
+exp(-.216)
+```
+Each 10% increase in percent of students on FRL in the corporation correlates with a 19% drop in odds of inclusion
+
+```{r include = F}
+model7 <- glmer(PLACEMENT_TYPE ~  corpSPED + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial,control=glmerControl(optimizer="bobyqa"))
+plot_model(model7, show.values = T)
+summary(model7)
+exp(-.181)
+```
+Each 1% increase in the percent of the corporation in special education corresponds with a 17% drop in odds of inclusion.
+
+```{r include = F}
+m1 <- glmer(PLACEMENT_TYPE ~  Ethnicity*GENDER_CODE + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial, control=glmerControl(optimizer="bobyqa"))
+
+plot_model(m1, show.values = T)
+# all have a significant effect
+plot(Effect(c("GENDER_CODE", "Ethnicity"), m1), lines=list(multiline=TRUE))
+```
+
+```{r include = F}
+m2 <- glmer(PLACEMENT_TYPE ~  Ethnicity*percentWhite + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial, control=glmerControl(optimizer="bobyqa"))
+
+plot_model(m2, show.values = T)
+# all have a significant effect
+plot(Effect(c("percentWhite", "Ethnicity"), m2), lines=list(multiline=TRUE))
+```
+
+```{r include = F}
+m3 <- glmer(PLACEMENT_TYPE ~  GENDER_CODE*discipline + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial, control=glmerControl(optimizer="bobyqa"))
+
+plot_model(m3, show.values = T)
+# none have a significant effect
+#plot(Effect(c("GENDER_CODE", "discipline"), m3), lines=list(multiline=TRUE), confint=list(style="bars"))
+```
+
+```{r include = F}
+m4 <- glmer(PLACEMENT_TYPE ~  Ethnicity*percentFRL + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial, control=glmerControl(optimizer="bobyqa"))
+
+plot_model(m4, show.values = T)
+# all have a significant effect
+plot(Effect(c("percentFRL", "Ethnicity"), m4), lines=list(multiline=TRUE))
+```
+
+```{r include = F}
+m5 <- glmer(PLACEMENT_TYPE ~  Ethnicity*percentWhite + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial, control=glmerControl(optimizer="bobyqa"))
+
+plot_model(m5, show.values = T)
+# all have a significant effect
+plot(Effect(c("percentWhite", "Ethnicity"), m5), lines=list(multiline=TRUE))
+```
+
+```{r include = F}
+m6 <- glmer(PLACEMENT_TYPE ~  schoolSize*percentWhite + (1|STUDENT_ALTERNATE_ID), data = data, family = binomial, control=glmerControl(optimizer="bobyqa"))
+
+plot_model(m6, show.values = T)
+# all have a significant effect
+plot(Effect(c("percentWhite", "schoolSize"), m6), lines=list(multiline=TRUE))
+```
